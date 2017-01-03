@@ -59,6 +59,9 @@ private[spark] class MesosCoarseGrainedSchedulerBackend(
   // Maximum number of cores to acquire (TODO: we'll need more flexible controls here)
   val maxCores = conf.get("spark.cores.max", Int.MaxValue.toString).toInt
 
+  // Number of tasks per Core (default = 1)
+  val tasksPerCore = conf.getInt("spark.tasks.perCore", 1)
+
   val useFetcherCache = conf.getBoolean("spark.mesos.fetcherCache.enable", false)
 
   val maxGpus = conf.getInt("spark.mesos.gpus.max", 0)
@@ -215,6 +218,7 @@ private[spark] class MesosCoarseGrainedSchedulerBackend(
         s" --executor-id $taskId" +
         s" --hostname ${offer.getHostname}" +
         s" --cores $numCores" +
+        s" --tasks-per-core $tasksPerCore" +
         s" --app-id $appId")
     } else {
       // Grab everything to the first '.'. We'll use that and '*' to
@@ -227,6 +231,7 @@ private[spark] class MesosCoarseGrainedSchedulerBackend(
         s" --executor-id $taskId" +
         s" --hostname ${offer.getHostname}" +
         s" --cores $numCores" +
+        s" --tasks-per-core $tasksPerCore" +
         s" --app-id $appId")
       command.addUris(CommandInfo.URI.newBuilder().setValue(uri.get).setCache(useFetcherCache))
     }
