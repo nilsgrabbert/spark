@@ -79,7 +79,7 @@ object SparkHadoopMapReduceWriter extends Logging {
     val committer = FileCommitProtocol.instantiate(
       className = classOf[HadoopMapReduceCommitProtocol].getName,
       jobId = stageId.toString,
-      outputPath = conf.value.get("mapred.output.dir"),
+      outputPath = conf.value.get("mapreduce.output.fileoutputformat.outputdir"),
       isAppend = false).asInstanceOf[HadoopMapReduceCommitProtocol]
     committer.setupJob(jobContext)
 
@@ -125,8 +125,7 @@ object SparkHadoopMapReduceWriter extends Logging {
     val taskContext = new TaskAttemptContextImpl(hadoopConf, attemptId)
     committer.setupTask(taskContext)
 
-    val outputMetricsAndBytesWrittenCallback: Option[(OutputMetrics, () => Long)] =
-      SparkHadoopWriterUtils.initHadoopOutputMetrics(context)
+    val (outputMetrics, callback) = SparkHadoopWriterUtils.initHadoopOutputMetrics(context)
 
     // Initiate the writer.
     val taskFormat = outputFormat.newInstance()
@@ -149,8 +148,7 @@ object SparkHadoopMapReduceWriter extends Logging {
           writer.write(pair._1, pair._2)
 
           // Update bytes written metric every few records
-          SparkHadoopWriterUtils.maybeUpdateOutputMetrics(
-            outputMetricsAndBytesWrittenCallback, recordsWritten)
+          SparkHadoopWriterUtils.maybeUpdateOutputMetrics(outputMetrics, callback, recordsWritten)
           recordsWritten += 1
         }
         if (writer != null) {
@@ -171,11 +169,8 @@ object SparkHadoopMapReduceWriter extends Logging {
         }
       })
 
-      outputMetricsAndBytesWrittenCallback.foreach {
-        case (om, callback) =>
-          om.setBytesWritten(callback())
-          om.setRecordsWritten(recordsWritten)
-      }
+      outputMetrics.setBytesWritten(callback())
+      outputMetrics.setRecordsWritten(recordsWritten)
 
       ret
     } catch {
@@ -183,69 +178,4 @@ object SparkHadoopMapReduceWriter extends Logging {
         throw new SparkException("Task failed while writing rows", t)
     }
   }
-}
-
-private[spark]
-object SparkHadoopWriterUtils {
-
-  private val RECORDS_BETWEEN_BYTES_WRITTEN_METRIC_UPDATES = 256
-
-  def createJobID(time: Date, id: Int): JobID = {
-    val jobtrackerID = createJobTrackerID(time)
-    new JobID(jobtrackerID, id)
-  }
-
-  def createJobTrackerID(time: Date): String = {
-    new SimpleDateFormat("yyyyMMddHHmmss", Locale.US).format(time)
-  }
-
-  def createPathFromString(path: String, conf: JobConf): Path = {
-    if (path == null) {
-      throw new IllegalArgumentException("Output path is null")
-    }
-    val outputPath = new Path(path)
-    val fs = outputPath.getFileSystem(conf)
-    if (fs == null) {
-      throw new IllegalArgumentException("Incorrectly formatted output path")
-    }
-    outputPath.makeQualified(fs.getUri, fs.getWorkingDirectory)
-  }
-
-  // Note: this needs to be a function instead of a 'val' so that the disableOutputSpecValidation
-  // setting can take effect:
-  def isOutputSpecValidationEnabled(conf: SparkConf): Boolean = {
-    val validationDisabled = disableOutputSpecValidation.value
-    val enabledInConf = conf.getBoolean("spark.hadoop.validateOutputSpecs", true)
-    enabledInConf && !validationDisabled
-  }
-
-  // TODO: these don't seem like the right abstractions.
-  // We should abstract the duplicate code in a less awkward way.
-
-  // return type: (output metrics, bytes written callback), defined only if the latter is defined
-  def initHadoopOutputMetrics(
-      context: TaskContext): Option[(OutputMetrics, () => Long)] = {
-    val bytesWrittenCallback = SparkHadoopUtil.get.getFSBytesWrittenOnThreadCallback()
-    bytesWrittenCallback.map { b =>
-      (context.taskMetrics().outputMetrics, b)
-    }
-  }
-
-  def maybeUpdateOutputMetrics(
-      outputMetricsAndBytesWrittenCallback: Option[(OutputMetrics, () => Long)],
-      recordsWritten: Long): Unit = {
-    if (recordsWritten % RECORDS_BETWEEN_BYTES_WRITTEN_METRIC_UPDATES == 0) {
-      outputMetricsAndBytesWrittenCallback.foreach {
-        case (om, callback) =>
-          om.setBytesWritten(callback())
-          om.setRecordsWritten(recordsWritten)
-      }
-    }
-  }
-
-  /**
-   * Allows for the `spark.hadoop.validateOutputSpecs` checks to be disabled on a case-by-case
-   * basis; see SPARK-4835 for more details.
-   */
-  val disableOutputSpecValidation: DynamicVariable[Boolean] = new DynamicVariable[Boolean](false)
 }

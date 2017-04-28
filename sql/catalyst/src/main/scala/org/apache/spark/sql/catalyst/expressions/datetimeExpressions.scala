@@ -33,6 +33,9 @@ import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
  * Common base class for time zone aware expressions.
  */
 trait TimeZoneAwareExpression extends Expression {
+  /** The expression is only resolved when the time zone has been set. */
+  override lazy val resolved: Boolean =
+    childrenResolved && checkInputDataTypes().isSuccess && timeZoneId.isDefined
 
   /** the timezone ID to be used to evaluate value. */
   def timeZoneId: Option[String]
@@ -1167,6 +1170,69 @@ case class ToDate(child: Expression) extends UnaryExpression with ImplicitCastIn
   }
 
   override def prettyName: String = "to_date"
+}
+
+/**
+ * Parses a column to a date based on the given format.
+ */
+// scalastyle:off line.size.limit
+@ExpressionDescription(
+  usage = "_FUNC_(date_str, fmt) - Parses the `left` expression with the `fmt` expression. Returns null with invalid input.",
+  extended = """
+    Examples:
+      > SELECT _FUNC_('2016-12-31', 'yyyy-MM-dd');
+       2016-12-31
+  """)
+// scalastyle:on line.size.limit
+case class ParseToDate(left: Expression, format: Option[Expression], child: Expression)
+  extends RuntimeReplaceable {
+
+  def this(left: Expression, format: Expression) {
+      this(left, Option(format),
+        Cast(Cast(UnixTimestamp(left, format), TimestampType), DateType))
+  }
+
+  def this(left: Expression) = {
+    // backwards compatability
+    this(left, Option(null), ToDate(left))
+  }
+
+  override def flatArguments: Iterator[Any] = Iterator(left, format)
+  override def sql: String = {
+    if (format.isDefined) {
+      s"$prettyName(${left.sql}, ${format.get.sql}"
+    } else {
+      s"$prettyName(${left.sql})"
+    }
+  }
+
+  override def prettyName: String = "to_date"
+}
+
+/**
+ * Parses a column to a timestamp based on the supplied format.
+ */
+// scalastyle:off line.size.limit
+@ExpressionDescription(
+  usage = "_FUNC_(timestamp, fmt) - Parses the `left` expression with the `format` expression to a timestamp. Returns null with invalid input.",
+  extended = """
+    Examples:
+      > SELECT _FUNC_('2016-12-31', 'yyyy-MM-dd');
+       2016-12-31 00:00:00.0
+  """)
+// scalastyle:on line.size.limit
+case class ParseToTimestamp(left: Expression, format: Expression, child: Expression)
+  extends RuntimeReplaceable {
+
+  def this(left: Expression, format: Expression) = {
+  this(left, format, Cast(UnixTimestamp(left, format), TimestampType))
+}
+
+  override def flatArguments: Iterator[Any] = Iterator(left, format)
+  override def sql: String = s"$prettyName(${left.sql}, ${format.sql})"
+
+  override def prettyName: String = "to_timestamp"
+  override def dataType: DataType = TimestampType
 }
 
 /**
