@@ -238,6 +238,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
     var executorId: String = null
     var hostname: String = null
     var cores: Int = 0
+    var tasksPerCore: Int = 1
     var appId: String = null
     var workerUrl: Option[String] = None
     val userClassPath = new mutable.ListBuffer[URL]()
@@ -256,6 +257,9 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
           argv = tail
         case ("--cores") :: value :: tail =>
           cores = value.toInt
+          argv = tail
+        case ("--tasks-per-core") :: value :: tail =>
+          tasksPerCore = value.toInt
           argv = tail
         case ("--app-id") :: value :: tail =>
           appId = value
@@ -277,11 +281,11 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
     }
 
     if (driverUrl == null || executorId == null || hostname == null || cores <= 0 ||
-      appId == null) {
+      tasksPerCore <= 0 || appId == null) {
       printUsageAndExit()
     }
 
-    run(driverUrl, executorId, hostname, cores, appId, workerUrl, userClassPath)
+    run(driverUrl, executorId, hostname, cores * tasksPerCore, appId, workerUrl, userClassPath)
     System.exit(0)
   }
 
@@ -296,6 +300,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       |   --executor-id <executorId>
       |   --hostname <hostname>
       |   --cores <cores>
+      |   --task-per-core <tasks>
       |   --app-id <appid>
       |   --worker-url <workerUrl>
       |   --user-class-path <url>
