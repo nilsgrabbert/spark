@@ -241,6 +241,8 @@ private[spark] class MesosCoarseGrainedSchedulerBackend(
 
     conf.getOption("spark.mesos.uris").foreach(setupUris(_, command, useFetcherCache))
 
+    println(s"### tasks-per-core: $tasksPerCore / cores: $numCores / command: $command " )
+
     command.build()
   }
 

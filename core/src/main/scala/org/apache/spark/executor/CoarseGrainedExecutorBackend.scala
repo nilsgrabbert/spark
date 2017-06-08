@@ -183,6 +183,8 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       workerUrl: Option[String],
       userClassPath: Seq[URL]) {
 
+    log.info(s"### (run) - number of cores: $cores")
+
     Utils.initDaemon(log)
 
     SparkHadoopUtil.get.runAsSparkUser { () =>
@@ -285,6 +287,8 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       printUsageAndExit()
     }
 
+    log.info(s"### number of cores: $cores / tasks per core: $tasksPerCore")
+
     run(driverUrl, executorId, hostname, cores * tasksPerCore, appId, workerUrl, userClassPath)
     System.exit(0)
   }
@@ -300,7 +304,7 @@ private[spark] object CoarseGrainedExecutorBackend extends Logging {
       |   --executor-id <executorId>
       |   --hostname <hostname>
       |   --cores <cores>
-      |   --task-per-core <tasks>
+      |   --tasks-per-core <tasks>
       |   --app-id <appid>
       |   --worker-url <workerUrl>
       |   --user-class-path <url>
