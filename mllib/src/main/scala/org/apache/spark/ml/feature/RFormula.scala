@@ -132,6 +132,30 @@ class RFormula @Since("1.5.0") (@Since("1.5.0") override val uid: String)
   @Since("1.5.0")
   def getFormula: String = $(formula)
 
+  /**
+   * Param for how to handle invalid data (unseen labels or NULL values).
+   * Options are 'skip' (filter out rows with invalid data),
+   * 'error' (throw an error), or 'keep' (put invalid data in a special additional
+   * bucket, at index numLabels).
+   * Default: "error"
+   * @group param
+   */
+  @Since("2.3.0")
+  val handleInvalid: Param[String] = new Param[String](this, "handleInvalid", "How to handle " +
+    "invalid data (unseen labels or NULL values). " +
+    "Options are 'skip' (filter out rows with invalid data), error (throw an error), " +
+    "or 'keep' (put invalid data in a special additional bucket, at index numLabels).",
+    ParamValidators.inArray(StringIndexer.supportedHandleInvalids))
+  setDefault(handleInvalid, StringIndexer.ERROR_INVALID)
+
+  /** @group setParam */
+  @Since("2.3.0")
+  def setHandleInvalid(value: String): this.type = set(handleInvalid, value)
+
+  /** @group getParam */
+  @Since("2.3.0")
+  def getHandleInvalid: String = $(handleInvalid)
+
   /** @group setParam */
   @Since("1.5.0")
   def setFeaturesCol(value: String): this.type = set(featuresCol, value)
@@ -197,6 +221,7 @@ class RFormula @Since("1.5.0") (@Since("1.5.0") override val uid: String)
             .setInputCol(term)
             .setOutputCol(indexCol)
             .setStringOrderType($(stringIndexerOrderType))
+            .setHandleInvalid($(handleInvalid))
           prefixesToRewrite(indexCol + "_") = term + "_"
           (term, indexCol)
         case _ =>
@@ -205,12 +230,20 @@ class RFormula @Since("1.5.0") (@Since("1.5.0") override val uid: String)
     }.toMap
 
     // Then we handle one-hot encoding and interactions between terms.
+    var keepReferenceCategory = false
     val encodedTerms = resolvedFormula.terms.map {
       case Seq(term) if dataset.schema(term).dataType == StringType =>
         val encodedCol = tmpColumn("onehot")
-        encoderStages += new OneHotEncoder()
+        var encoder = new OneHotEncoder()
           .setInputCol(indexed(term))
           .setOutputCol(encodedCol)
+        // Formula w/o intercept, one of the categories in the first category feature is
+        // being used as reference category, we will not drop any category for that feature.
+        if (!hasIntercept && !keepReferenceCategory) {
+          encoder = encoder.setDropLast(false)
+          keepReferenceCategory = true
+        }
+        encoderStages += encoder
         prefixesToRewrite(encodedCol + "_") = term + "_"
         encodedCol
       case Seq(term) =>

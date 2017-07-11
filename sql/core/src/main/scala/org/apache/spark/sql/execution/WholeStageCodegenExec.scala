@@ -352,11 +352,11 @@ case class WholeStageCodegenExec(child: SparkPlan) extends UnaryExecNode with Co
           ${ctx.initPartition()}
         }
 
-        ${ctx.declareAddedFunctions()}
-
         protected void processNext() throws java.io.IOException {
           ${code.trim}
         }
+
+        ${ctx.declareAddedFunctions()}
       }
       """.trim
 
