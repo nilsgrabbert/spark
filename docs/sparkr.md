@@ -476,6 +476,10 @@ SparkR supports the following machine learning algorithms currently:
 
 * [`spark.als`](api/R/spark.als.html): [`Alternating Least Squares (ALS)`](ml-collaborative-filtering.html#collaborative-filtering)
 
+#### Frequent Pattern Mining
+
+* [`spark.fpGrowth`](api/R/spark.fpGrowth.html) : [`FP-growth`](ml-frequent-pattern-mining.html#fp-growth)
+
 #### Statistics
 
 * [`spark.kstest`](api/R/spark.kstest.html): `Kolmogorov-Smirnov Test`
@@ -558,6 +562,10 @@ The following example shows how to save/load a MLlib model by SparkR.
   <td>map</td>
 </tr>
 </table>
+
+# Structured Streaming
+
+SparkR supports the Structured Streaming API (experimental). Structured Streaming is a scalable and fault-tolerant stream processing engine built on the Spark SQL engine. For more information see the R API on the [Structured Streaming Programming Guide](structured-streaming-programming-guide.html)
 
 # R Function Name Conflicts
 
